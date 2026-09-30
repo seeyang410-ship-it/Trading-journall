@@ -1,0 +1,6 @@
+{
+  "name": "TradeZella Pro - 智能交易日志与资产分析",
+  "description": "专业级交易日志与可视化数据分析平台，支持MT5账户直连、自动导入交易报告、日历盈亏热力图、实时市场行情与跨平台数据同步。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
