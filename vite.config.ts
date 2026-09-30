@@ -73,8 +73,14 @@ function apiBackendPlugin(): Plugin {
 
 export default defineConfig(() => {
   // Dynamically adapt base path for GitHub Pages (e.g. /Trading-journall/) or relative in local dev
-  const base = process.env.VITE_BASE_PATH ||
+  let base = process.env.VITE_BASE_PATH ||
     (process.env.GITHUB_REPOSITORY ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/` : './');
+
+  if (base && base !== './') {
+    if (!base.startsWith('/')) base = '/' + base;
+    if (!base.endsWith('/')) base = base + '/';
+    base = base.replace(/\/+/g, '/');
+  }
 
   return {
     base,
