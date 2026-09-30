@@ -1,8 +1,21 @@
 {
-  "name": "react-example",
+  "name": "alphalog-trading-journal",
+  "version": "1.0.0",
+  "description": "Professional Quantitative Trading Journal, Analytics & Real-Time Macro News Terminal built with React 19, TypeScript and Tailwind CSS.",
   "private": true,
-  "version": "0.0.0",
+  "license": "MIT",
   "type": "module",
+  "keywords": [
+    "trading",
+    "trading-journal",
+    "forex",
+    "mt5",
+    "quantitative",
+    "react",
+    "typescript",
+    "vite",
+    "tailwindcss"
+  ],
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
