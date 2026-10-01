@@ -83,7 +83,8 @@ export function parseMT5HTMLReport(htmlContent: string, accountId: string): Trad
             mistakes: ['None (Disciplined)'],
             notes: `从 MT5 报表自动导入 (Deal #${ticketNum})`,
             rating: profit > 0 ? 5 : 3,
-            accountId
+            accountId,
+            positionStatus: 'CLOSED'
           });
         }
       }
@@ -154,7 +155,8 @@ export function parseCSVReport(csvContent: string, accountId: string): Trade[] {
         mistakes: ['None (Disciplined)'],
         notes: `从 CSV 文件导入 (Ticket #${ticket})`,
         rating: profit >= 0 ? 5 : 3,
-        accountId
+        accountId,
+        positionStatus: 'CLOSED'
       });
     }
   } catch (err) {
@@ -205,7 +207,8 @@ export function generateSampleMT5Import(accountId: string): Trade[] {
       mistakes: ['None (Disciplined)'],
       notes: `MT5 实时自动同步订单 (Ticket #${ticket})`,
       rating: profit >= 0 ? 5 : 3,
-      accountId
+      accountId,
+      positionStatus: idx === 0 ? 'HOLDING' : 'CLOSED'
     };
   });
 }

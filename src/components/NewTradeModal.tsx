@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { X, Check, Save, Star, AlertTriangle, ShieldCheck, Image as ImageIcon, Upload } from 'lucide-react';
-import { Trade, SetupType, EmotionTag, MistakeTag, AssetClass } from '../types/trade';
+import { X, Check, Save, Star, AlertTriangle, ShieldCheck, Image as ImageIcon, Upload, Activity } from 'lucide-react';
+import { Trade, SetupType, EmotionTag, MistakeTag, AssetClass, PositionStatus } from '../types/trade';
 
 interface NewTradeModalProps {
   isOpen: boolean;
@@ -38,11 +38,22 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
     return defaultSetups;
   }, [availableSetups]);
 
+  const [positionStatus, setPositionStatus] = useState<PositionStatus>(initialData?.positionStatus || 'CLOSED');
   const [symbol, setSymbol] = useState(initialData?.symbol || 'XAUUSD');
   const [type, setType] = useState<'BUY' | 'SELL'>(initialData?.type || 'BUY');
   const [volume, setVolume] = useState<number>(initialData?.volume || 1.0);
   const [openPrice, setOpenPrice] = useState<number>(initialData?.openPrice || 2908.5);
   const [closePrice, setClosePrice] = useState<number>(initialData?.closePrice || 2924.0);
+  const [openTime, setOpenTime] = useState<string>(() => {
+    if (initialData?.openTime) return initialData.openTime.slice(0, 16);
+    const d = new Date(Date.now() - 3600000 * 2);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  });
+  const [closeTime, setCloseTime] = useState<string>(() => {
+    if (initialData?.closeTime) return initialData.closeTime.slice(0, 16);
+    const d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  });
   const [stopLoss, setStopLoss] = useState<number | undefined>(initialData?.stopLoss || 2898.0);
   const [takeProfit, setTakeProfit] = useState<number | undefined>(initialData?.takeProfit || 2930.0);
   const [profit, setProfit] = useState<number>(initialData?.profit || 1550.0);
@@ -86,6 +97,11 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const formattedOpen = openTime ? new Date(openTime).toISOString() : (initialData?.openTime || new Date().toISOString());
+    const formattedClose = positionStatus === 'HOLDING' 
+      ? '' 
+      : (closeTime ? new Date(closeTime).toISOString() : new Date().toISOString());
+
     const newTrade: Trade = {
       id: initialData?.id || `tr-${Date.now()}`,
       ticket: initialData?.ticket || Math.floor(950000 + Math.random() * 40000),
@@ -93,10 +109,10 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
       assetClass: symbol.includes('USD') && !['XAUUSD', 'BTCUSD'].includes(symbol) ? 'Forex' : 'Commodities',
       type,
       volume,
-      openTime: initialData?.openTime || new Date(Date.now() - 3600000 * 2).toISOString(),
-      closeTime: initialData?.closeTime || new Date().toISOString(),
+      openTime: formattedOpen,
+      closeTime: formattedClose,
       openPrice,
-      closePrice,
+      closePrice: positionStatus === 'HOLDING' ? (closePrice || openPrice) : closePrice,
       stopLoss,
       takeProfit,
       profit,
@@ -110,7 +126,8 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
       notes,
       rating,
       chartUrl,
-      accountId
+      accountId,
+      positionStatus
     };
 
     onSaveTrade(newTrade);
@@ -137,7 +154,76 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 flex-1">
           
-          {/* Symbol, Type, Volume Row */}
+          {/* Position Status & Direction Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg bg-[#0e1420] border border-[#1b2538]">
+            {/* Position Status */}
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-bold text-white">
+                  <Activity className="w-3.5 h-3.5 text-blue-400" />
+                  <span>持仓状态 (Status)</span>
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {positionStatus === 'HOLDING' ? '当前单仍在持仓中' : '该单已平仓结单'}
+                </span>
+              </label>
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#141b29] rounded-lg border border-[#20293d]">
+                <button
+                  type="button"
+                  onClick={() => setPositionStatus('HOLDING')}
+                  className={`py-1.5 px-3 text-xs font-medium rounded transition-all flex items-center justify-center gap-1.5 ${
+                    positionStatus === 'HOLDING' 
+                      ? 'bg-blue-600/30 text-blue-400 border border-blue-500/50 shadow-sm font-bold' 
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${positionStatus === 'HOLDING' ? 'bg-blue-400 animate-pulse' : 'bg-slate-500'}`}></span>
+                  <span>持仓中 (Open)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPositionStatus('CLOSED')}
+                  className={`py-1.5 px-3 text-xs font-medium rounded transition-all flex items-center justify-center gap-1.5 ${
+                    positionStatus === 'CLOSED' 
+                      ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 shadow-sm font-bold' 
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>已平仓 (Closed)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Direction */}
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1 font-bold text-white">
+                多空方向 (Direction)
+              </label>
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#141b29] rounded-lg border border-[#20293d]">
+                <button
+                  type="button"
+                  onClick={() => setType('BUY')}
+                  className={`py-1.5 text-xs font-mono font-medium rounded transition-colors ${
+                    type === 'BUY' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  BUY (做多)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setType('SELL')}
+                  className={`py-1.5 text-xs font-mono font-medium rounded transition-colors ${
+                    type === 'SELL' ? 'bg-rose-500 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  SELL (做空)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Symbol, Volume, Open Time Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">交易品种 (Symbol)</label>
@@ -152,30 +238,6 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">多空方向 (Direction)</label>
-              <div className="grid grid-cols-2 gap-1 p-0.5 bg-[#141b29] rounded-lg border border-[#20293d]">
-                <button
-                  type="button"
-                  onClick={() => setType('BUY')}
-                  className={`py-1 text-xs font-mono font-medium rounded transition-colors ${
-                    type === 'BUY' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400'
-                  }`}
-                >
-                  BUY (多)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setType('SELL')}
-                  className={`py-1 text-xs font-mono font-medium rounded transition-colors ${
-                    type === 'SELL' ? 'bg-rose-500 text-white font-bold' : 'text-slate-400'
-                  }`}
-                >
-                  SELL (空)
-                </button>
-              </div>
-            </div>
-
-            <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">交易手数 (Lots)</label>
               <input
                 type="number"
@@ -187,12 +249,23 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
                 className="w-full bg-[#141b29] border border-[#20293d] rounded-lg px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-emerald-500/50"
               />
             </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1">开仓时间 (Open Time)</label>
+              <input
+                type="datetime-local"
+                value={openTime}
+                onChange={(e) => setOpenTime(e.target.value)}
+                required
+                className="w-full bg-[#141b29] border border-[#20293d] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none"
+              />
+            </div>
           </div>
 
-          {/* Prices Row: Open, Close, StopLoss, TakeProfit */}
+          {/* Prices Row: Open, Close/Mark, StopLoss, TakeProfit */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">入场价格 (Open)</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">开仓价格 (Open)</label>
               <input
                 type="number"
                 step="any"
@@ -204,13 +277,16 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">平仓价格 (Close)</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">
+                {positionStatus === 'HOLDING' ? '当前价/参考价 (Mark)' : '平仓价格 (Close)'}
+              </label>
               <input
                 type="number"
                 step="any"
                 value={closePrice}
                 onChange={(e) => setClosePrice(parseFloat(e.target.value) || 0)}
-                required
+                required={positionStatus === 'CLOSED'}
+                placeholder={positionStatus === 'HOLDING' ? '当前参考价格' : '平仓价'}
                 className="w-full bg-[#141b29] border border-[#20293d] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none"
               />
             </div>
@@ -240,10 +316,12 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
             </div>
           </div>
 
-          {/* P&L & Commission Row */}
+          {/* P&L, Close Time (if closed), and Commission Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">净盈亏 USD (Profit)</label>
+              <label className="block text-xs font-medium text-slate-300 mb-1">
+                {positionStatus === 'HOLDING' ? '当前浮动盈亏 USD (Floating P&L)' : '已结净盈亏 USD (Net Profit)'}
+              </label>
               <input
                 type="number"
                 step="0.01"
@@ -256,26 +334,46 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">佣金手续费 (Commission)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={commission}
-                onChange={(e) => setCommission(parseFloat(e.target.value) || 0)}
-                className="w-full bg-[#141b29] border border-[#20293d] rounded-lg px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none"
-              />
-            </div>
+            {positionStatus === 'CLOSED' ? (
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">平仓时间 (Close Time)</label>
+                <input
+                  type="datetime-local"
+                  value={closeTime}
+                  onChange={(e) => setCloseTime(e.target.value)}
+                  className="w-full bg-[#141b29] border border-[#20293d] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">平仓时间</label>
+                <div className="w-full bg-[#101622] border border-[#1b2336] rounded-lg px-3 py-1.5 text-xs text-blue-400 font-mono flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+                  <span>持仓进行中 (未平仓)</span>
+                </div>
+              </div>
+            )}
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">隔夜利息 (Swap)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={swap}
-                onChange={(e) => setSwap(parseFloat(e.target.value) || 0)}
-                className="w-full bg-[#141b29] border border-[#20293d] rounded-lg px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none"
-              />
+              <label className="block text-xs font-medium text-slate-300 mb-1">佣金/隔夜费 (Commission / Swap)</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={commission}
+                  onChange={(e) => setCommission(parseFloat(e.target.value) || 0)}
+                  placeholder="佣金"
+                  className="w-full bg-[#141b29] border border-[#20293d] rounded-lg px-2 py-1.5 text-xs font-mono text-slate-200 focus:outline-none"
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  value={swap}
+                  onChange={(e) => setSwap(parseFloat(e.target.value) || 0)}
+                  placeholder="库存费"
+                  className="w-full bg-[#141b29] border border-[#20293d] rounded-lg px-2 py-1.5 text-xs font-mono text-slate-200 focus:outline-none"
+                />
+              </div>
             </div>
           </div>
 

@@ -1,4 +1,5 @@
 export type TradeType = 'BUY' | 'SELL';
+export type PositionStatus = 'HOLDING' | 'CLOSED';
 export type AssetClass = 'Forex' | 'Indices' | 'Commodities' | 'Crypto' | 'Stocks';
 
 export type SetupType = string;
@@ -46,6 +47,7 @@ export interface Trade {
   rating?: number; // 1 to 5 stars
   chartUrl?: string;
   accountId: string;
+  positionStatus?: PositionStatus; // 'HOLDING' (持仓中) | 'CLOSED' (已平仓)
 }
 
 export interface MT5Account {

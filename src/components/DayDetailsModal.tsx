@@ -100,7 +100,14 @@ export const DayDetailsModal: React.FC<DayDetailsModalProps> = ({
                       }`}>
                         {t.type} {t.volume}L
                       </span>
-                      <span className="text-[11px] text-slate-400 font-mono">#{t.ticket}</span>
+                      {t.positionStatus === 'HOLDING' ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-sans">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                          <span>持仓中</span>
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 font-mono">#{t.ticket}</span>
+                      )}
                     </div>
                     <div className="text-[11px] text-slate-400 mt-1 font-sans">
                       {t.setup} · {t.pips >= 0 ? `+${t.pips}` : t.pips} pips

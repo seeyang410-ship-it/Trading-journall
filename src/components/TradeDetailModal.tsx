@@ -96,6 +96,17 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
     }
   };
 
+  const handleTogglePositionStatus = () => {
+    if (!onUpdateTrade) return;
+    const newStatus = trade.positionStatus === 'HOLDING' ? 'CLOSED' : 'HOLDING';
+    const updated: Trade = {
+      ...trade,
+      positionStatus: newStatus,
+      closeTime: newStatus === 'HOLDING' ? '' : (trade.closeTime || new Date().toISOString())
+    };
+    onUpdateTrade(updated);
+  };
+
   return (
     <>
       <div 
@@ -119,6 +130,19 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                   <span>{trade.symbol}</span>
                   <span className="text-xs text-slate-400 font-sans font-normal">#{trade.ticket}</span>
                 </h3>
+              </div>
+              <div>
+                {trade.positionStatus === 'HOLDING' ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/40">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                    <span>持仓中 (Open)</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700/60">
+                    <Check className="w-3 h-3 text-slate-400" />
+                    <span>已平仓 (Closed)</span>
+                  </span>
+                )}
               </div>
             </div>
 
@@ -160,6 +184,37 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Position Status Notice / Action Bar */}
+          {trade.positionStatus === 'HOLDING' ? (
+            <div className="mx-5 mt-4 p-3.5 bg-blue-950/30 border border-blue-500/40 rounded-xl flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse"></span>
+                <div>
+                  <div className="text-xs font-bold text-blue-300">当前订单为「持仓中」</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">平仓价当前为最新参考价，盈亏为当前浮动盈亏</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleTogglePositionStatus}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs rounded-lg transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>标记为已平仓</span>
+              </button>
+            </div>
+          ) : (
+            <div className="mx-5 mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={handleTogglePositionStatus}
+                className="text-[11px] text-slate-400 hover:text-blue-400 transition-colors flex items-center gap-1"
+              >
+                <span>重新转为「持仓中」状态</span>
+              </button>
+            </div>
+          )}
 
           {/* Detailed Spec Grid */}
           <div className="p-5 space-y-4 flex-1">

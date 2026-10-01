@@ -134,7 +134,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     let count = 0;
     let wins = 0;
     trades.forEach(t => {
-      const d = new Date(t.closeTime);
+      const d = new Date(t.closeTime || t.openTime);
       if (d.getFullYear() === year && d.getMonth() === month) {
         const net = t.profit + t.commission + t.swap;
         profit += net;

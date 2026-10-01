@@ -59,6 +59,7 @@ export const TradingJournalView: React.FC<TradingJournalViewProps> = ({
   // SUB-TAB 1: TRADES LOG STATE & LOGIC
   // ----------------------------------------------------
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'HOLDING' | 'CLOSED'>('ALL');
   const [symbolFilter, setSymbolFilter] = useState('ALL');
   const [outcomeFilter, setOutcomeFilter] = useState<'ALL' | 'WIN' | 'LOSS'>('ALL');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'BUY' | 'SELL'>('ALL');
@@ -78,6 +79,9 @@ export const TradingJournalView: React.FC<TradingJournalViewProps> = ({
     return Array.from(set);
   }, [trades]);
 
+  const holdingCount = useMemo(() => trades.filter(t => t.positionStatus === 'HOLDING').length, [trades]);
+  const closedCount = useMemo(() => trades.filter(t => (t.positionStatus || 'CLOSED') === 'CLOSED').length, [trades]);
+
   const filteredTrades = useMemo(() => {
     return trades.filter(t => {
       const net = (t.profit || 0) + (t.commission || 0) + (t.swap || 0);
@@ -90,6 +94,11 @@ export const TradingJournalView: React.FC<TradingJournalViewProps> = ({
         if (!matchSymbol && !matchTicket && !matchNotes) return false;
       }
 
+      if (statusFilter !== 'ALL') {
+        const tradeStatus = t.positionStatus || 'CLOSED';
+        if (tradeStatus !== statusFilter) return false;
+      }
+
       if (symbolFilter !== 'ALL' && t.symbol !== symbolFilter) return false;
       if (typeFilter !== 'ALL' && t.type !== typeFilter) return false;
       if (setupFilter !== 'ALL' && t.setup !== setupFilter) return false;
@@ -99,7 +108,7 @@ export const TradingJournalView: React.FC<TradingJournalViewProps> = ({
 
       return true;
     });
-  }, [trades, searchTerm, symbolFilter, typeFilter, setupFilter, outcomeFilter]);
+  }, [trades, searchTerm, statusFilter, symbolFilter, typeFilter, setupFilter, outcomeFilter]);
 
   const logMetrics = useMemo(() => {
     const total = filteredTrades.length;
@@ -362,6 +371,21 @@ export const TradingJournalView: React.FC<TradingJournalViewProps> = ({
                 <Filter className="w-3 h-3 text-slate-400" /> 快速筛选:
               </span>
 
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className={`bg-[#141b29] border rounded px-2.5 py-1 text-xs focus:outline-none transition-colors ${
+                  statusFilter === 'HOLDING' 
+                    ? 'border-blue-500/60 text-blue-400 font-bold bg-blue-950/30' 
+                    : 'border-[#20293d] text-slate-200'
+                }`}
+              >
+                <option value="ALL">全部状态 ({trades.length})</option>
+                <option value="HOLDING">● 仅持仓中 ({holdingCount})</option>
+                <option value="CLOSED">✓ 仅已平仓 ({closedCount})</option>
+              </select>
+
               {/* Direction Filter */}
               <select
                 value={typeFilter}
@@ -413,10 +437,11 @@ export const TradingJournalView: React.FC<TradingJournalViewProps> = ({
               )}
 
               {/* Reset filter shortcut */}
-              {(searchTerm || symbolFilter !== 'ALL' || outcomeFilter !== 'ALL' || typeFilter !== 'ALL' || setupFilter !== 'ALL') && (
+              {(searchTerm || statusFilter !== 'ALL' || symbolFilter !== 'ALL' || outcomeFilter !== 'ALL' || typeFilter !== 'ALL' || setupFilter !== 'ALL') && (
                 <button
                   onClick={() => {
                     setSearchTerm('');
+                    setStatusFilter('ALL');
                     setSymbolFilter('ALL');
                     setOutcomeFilter('ALL');
                     setTypeFilter('ALL');
@@ -435,6 +460,9 @@ export const TradingJournalView: React.FC<TradingJournalViewProps> = ({
                 筛选记录: <strong className="text-white">{filteredTrades.length}</strong> 笔
               </div>
               <div>
+                持仓中: <strong className="text-blue-400">{holdingCount}</strong> 笔
+              </div>
+              <div>
                 胜率: <strong className="text-emerald-400">{logMetrics.winRate}%</strong> ({logMetrics.winsCount}胜 {logMetrics.lossCount}负)
               </div>
               <div>
@@ -451,22 +479,23 @@ export const TradingJournalView: React.FC<TradingJournalViewProps> = ({
               <table className="w-full text-left text-xs whitespace-nowrap">
                 <thead className="bg-[#131926] border-b border-[#1b2438] text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                   <tr>
+                    <th className="py-3 px-3">状态</th>
                     <th className="py-3 px-4">订单号</th>
                     <th className="py-3 px-4">标的品种</th>
                     <th className="py-3 px-4">方向</th>
                     <th className="py-3 px-4">手数</th>
-                    <th className="py-3 px-4">开仓价 → 平仓价</th>
+                    <th className="py-3 px-4">开仓价 → 平仓/现价</th>
                     <th className="py-3 px-4">开平仓时间</th>
                     <th className="py-3 px-4">点数 (Pips)</th>
                     <th className="py-3 px-4">战术模型 (Setup)</th>
-                    <th className="py-3 px-4 text-right">净盈亏 (Net P&L)</th>
+                    <th className="py-3 px-4 text-right">净/浮动盈亏</th>
                     <th className="py-3 px-4 text-center">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#182133] font-mono">
                   {filteredTrades.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-12 text-center text-slate-400 font-sans">
+                      <td colSpan={11} className="py-12 text-center text-slate-400 font-sans">
                         <FileSpreadsheet className="w-8 h-8 mx-auto mb-2 text-slate-400" />
                         <div>暂无符合筛选条件的交易订单</div>
                         <div className="text-[11px] text-slate-400 mt-1">
@@ -478,12 +507,27 @@ export const TradingJournalView: React.FC<TradingJournalViewProps> = ({
                     filteredTrades.map((t) => {
                       const net = (t.profit || 0) + (t.commission || 0) + (t.swap || 0);
                       const isProfit = net >= 0;
+                      const isHolding = t.positionStatus === 'HOLDING';
                       return (
                         <tr 
                           key={t.id}
-                          className="hover:bg-[#141b29] transition-colors group cursor-pointer"
+                          className={`hover:bg-[#141b29] transition-colors group cursor-pointer ${
+                            isHolding ? 'bg-blue-950/10' : ''
+                          }`}
                           onClick={() => onSelectTrade(t)}
                         >
+                          <td className="py-3 px-3 font-sans">
+                            {isHolding ? (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/40">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                                <span>持仓中</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700/60">
+                                <span>已平仓</span>
+                              </span>
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-slate-400">
                             #{t.ticket}
                           </td>
@@ -506,10 +550,21 @@ export const TradingJournalView: React.FC<TradingJournalViewProps> = ({
                             {t.volume.toFixed(2)}
                           </td>
                           <td className="py-3 px-4 text-slate-300">
-                            {t.openPrice.toFixed(2)} → {t.closePrice.toFixed(2)}
+                            {isHolding ? (
+                              <span>{t.openPrice.toFixed(2)} → <span className="text-blue-400 font-bold">{t.closePrice.toFixed(2)}</span> <span className="text-[10px] text-slate-400 font-sans">(现价)</span></span>
+                            ) : (
+                              <span>{t.openPrice.toFixed(2)} → {t.closePrice.toFixed(2)}</span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-slate-400 text-[11px]">
-                            {t.closeTime ? t.closeTime.slice(5, 16).replace('T', ' ') : t.openTime.slice(5, 16).replace('T', ' ')}
+                            {isHolding ? (
+                              <div className="flex items-center gap-1 text-blue-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                                <span>{t.openTime ? t.openTime.slice(5, 16).replace('T', ' ') : '开仓'}</span>
+                              </div>
+                            ) : (
+                              <span>{t.closeTime ? t.closeTime.slice(5, 16).replace('T', ' ') : (t.openTime ? t.openTime.slice(5, 16).replace('T', ' ') : '')}</span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-slate-300">
                             {t.pips > 0 ? `+${t.pips}` : t.pips}
@@ -519,8 +574,13 @@ export const TradingJournalView: React.FC<TradingJournalViewProps> = ({
                               {t.setup || '自由交易'}
                             </span>
                           </td>
-                          <td className={`py-3 px-4 text-right font-bold text-sm ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {isProfit ? '+' : ''}${net.toFixed(2)}
+                          <td className="py-3 px-4 text-right">
+                            <div className={`font-bold text-sm ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {isProfit ? '+' : ''}${net.toFixed(2)}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-sans">
+                              {isHolding ? '浮动盈亏' : (t.rrRatio ? (t.rrRatio > 0 ? `+${t.rrRatio}R` : `${t.rrRatio}R`) : '已结算')}
+                            </div>
                           </td>
                           <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-center gap-1.5">

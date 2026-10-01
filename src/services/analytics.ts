@@ -190,7 +190,7 @@ export function getDailyPnLMap(trades: Trade[]): Map<string, DayPnL> {
 }
 
 export function getEquityCurve(trades: Trade[], initialBalance = 100000): EquityPoint[] {
-  const sorted = [...trades].sort((a, b) => new Date(a.closeTime).getTime() - new Date(b.closeTime).getTime());
+  const sorted = [...trades].sort((a, b) => new Date(a.closeTime || a.openTime).getTime() - new Date(b.closeTime || b.openTime).getTime());
   
   if (sorted.length === 0) {
     return [{
@@ -206,7 +206,7 @@ export function getEquityCurve(trades: Trade[], initialBalance = 100000): Equity
   const points: EquityPoint[] = [];
 
   // Start point
-  const firstDate = sorted[0].openTime.slice(0, 10);
+  const firstDate = (sorted[0].openTime || new Date().toISOString()).slice(0, 10);
   points.push({
     date: firstDate,
     time: '00:00',
@@ -218,9 +218,10 @@ export function getEquityCurve(trades: Trade[], initialBalance = 100000): Equity
   sorted.forEach(t => {
     const net = t.profit + t.commission + t.swap;
     runningProfit += net;
-    const dt = new Date(t.closeTime);
+    const timeStr = t.closeTime || t.openTime || new Date().toISOString();
+    const dt = new Date(timeStr);
     points.push({
-      date: t.closeTime.slice(0, 10),
+      date: timeStr.slice(0, 10),
       time: `${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`,
       equity: Math.round((initialBalance + runningProfit) * 100) / 100,
       balance: Math.round((initialBalance + runningProfit) * 100) / 100,
@@ -311,7 +312,7 @@ export function getBreakdownByDayOfWeek(trades: Trade[]): CategoryBreakdown[] {
   const dayBuckets: Record<number, Trade[]> = { 1: [], 2: [], 3: [], 4: [], 5: [] };
 
   trades.forEach(t => {
-    const d = new Date(t.closeTime).getDay();
+    const d = new Date(t.closeTime || t.openTime).getDay();
     if (dayBuckets[d]) {
       dayBuckets[d].push(t);
     }
