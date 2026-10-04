@@ -14,11 +14,13 @@ import {
   ShieldCheck,
   DollarSign,
   Newspaper,
-  StickyNote
+  StickyNote,
+  Globe2,
+  Building2
 } from 'lucide-react';
 import { MT5Account } from '../types/trade';
 
-export type TabType = 'dashboard' | 'journal' | 'news' | 'notes';
+export type TabType = 'dashboard' | 'macro' | 'equity' | 'journal' | 'news' | 'notes';
 
 interface NavigationProps {
   activeTab: TabType;
@@ -51,9 +53,11 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   const navLinks = [
     { id: 'dashboard' as TabType, label: '量化看板', icon: LayoutDashboard },
+    { id: 'macro' as TabType, label: '全球宏观', icon: Globe2 },
+    { id: 'equity' as TabType, label: '股票估值', icon: Building2 },
     { id: 'journal' as TabType, label: '交易日志', icon: BookOpen },
-    { id: 'news' as TabType, label: '实时新闻', icon: Newspaper },
-    { id: 'notes' as TabType, label: '随笔Note', icon: StickyNote },
+    { id: 'news' as TabType, label: '实时快讯', icon: Newspaper },
+    { id: 'notes' as TabType, label: '投研Note', icon: StickyNote },
   ];
 
   return (
@@ -186,8 +190,13 @@ export const Navigation: React.FC<NavigationProps> = ({
             })}
           </nav>
 
-          {/* Zone 3: Actions (Import Data + New Trade) */}
+          {/* Zone 3: Live Pulse & Actions (Import Data + New Trade) */}
           <div className="flex items-center gap-2 shrink-0">
+            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-mono font-bold text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <span>LIVE STREAM 3s</span>
+            </div>
+
             <button
               onClick={onOpenImport}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-[#131926] hover:bg-[#1a2336] border border-[#222c42] text-slate-200 transition-colors"

@@ -48,6 +48,7 @@ export interface Trade {
   chartUrl?: string;
   accountId: string;
   positionStatus?: PositionStatus; // 'HOLDING' (持仓中) | 'CLOSED' (已平仓)
+  macroDriver?: string; // 宏观第一性原理驱动归因
 }
 
 export interface MT5Account {

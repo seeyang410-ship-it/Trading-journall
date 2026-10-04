@@ -60,12 +60,27 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
   const [commission, setCommission] = useState<number>(initialData?.commission || -12.0);
   const [swap, setSwap] = useState<number>(initialData?.swap || 0);
   const [setup, setSetup] = useState<SetupType>(initialData?.setup || setupList[0] || 'Order Block / FVG');
+  const [macroDriver, setMacroDriver] = useState<string>(initialData?.macroDriver || '顺应全球流动性扩张 (Global Liquidity Expansion)');
   const [selectedEmotion, setSelectedEmotion] = useState<EmotionTag>('Disciplined');
   const [selectedMistake, setSelectedMistake] = useState<MistakeTag>('None (Disciplined)');
   const [rating, setRating] = useState<number>(initialData?.rating || 5);
   const [notes, setNotes] = useState(initialData?.notes || '');
   const [chartUrl, setChartUrl] = useState<string | undefined>(initialData?.chartUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (isOpen && initialData) {
+      if (initialData.symbol) setSymbol(initialData.symbol);
+      if (initialData.type) setType(initialData.type);
+      if (initialData.volume !== undefined) setVolume(initialData.volume);
+      if (initialData.openPrice !== undefined) setOpenPrice(initialData.openPrice);
+      if (initialData.closePrice !== undefined) setClosePrice(initialData.closePrice);
+      if (initialData.setup) setSetup(initialData.setup);
+      if (initialData.notes !== undefined) setNotes(initialData.notes);
+      if (initialData.macroDriver) setMacroDriver(initialData.macroDriver);
+      if (initialData.positionStatus) setPositionStatus(initialData.positionStatus);
+    }
+  }, [initialData, isOpen]);
 
   const handleImageUpload = (file: File) => {
     if (!file.type.startsWith('image/')) return;
@@ -127,7 +142,8 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
       rating,
       chartUrl,
       accountId,
-      positionStatus
+      positionStatus,
+      macroDriver
     };
 
     onSaveTrade(newTrade);
@@ -377,8 +393,28 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
             </div>
           </div>
 
-          {/* Strategy Setup & Rating */}
+          {/* Macro Driver & Strategy Setup */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1 flex items-center justify-between">
+                <span>宏观驱动归因 (Macro Driver)</span>
+                <span className="text-[10px] text-cyan-400 font-sans">第一性原理</span>
+              </label>
+              <select
+                value={macroDriver}
+                onChange={(e) => setMacroDriver(e.target.value)}
+                className="w-full bg-[#141b29] border border-[#20293d] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+              >
+                <option value="顺应全球流动性扩张 (Global Liquidity Expansion)">顺应全球流动性扩张 (Global Liquidity Expansion)</option>
+                <option value="实际利率中枢下行利好 (Real Yields Falling)">实际利率中枢下行利好 (Real Yields Falling)</option>
+                <option value="CFA 基本面内在价值低估 (CFA Value & DCF Discount)">CFA 基本面内在价值低估 (CFA Value & DCF Discount)</option>
+                <option value="央行去美元化主权储备购金 (Central Bank De-Dollarization)">央行去美元化主权储备购金 (Central Bank De-Dollarization)</option>
+                <option value="利差顺势套息驱动 (Carry Trade Yield Spread)">利差顺势套息驱动 (Carry Trade Yield Spread)</option>
+                <option value="地缘政治避险溢价 (Geopolitical Risk Premium)">地缘政治避险溢价 (Geopolitical Risk Premium)</option>
+                <option value="纯技术面/纯微观形态交易 (Pure Price Action)">纯技术面/纯微观形态交易 (Pure Price Action)</option>
+              </select>
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">战术策略模型 (Setup)</label>
               <select
@@ -391,7 +427,10 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
                 ))}
               </select>
             </div>
+          </div>
 
+          {/* Execution Rating & Emotions */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">执行自我评分 (1-5)</label>
               <div className="flex items-center gap-1 py-1">
@@ -407,10 +446,7 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
                 ))}
               </div>
             </div>
-          </div>
 
-          {/* Psychology & Mistake Tags */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">心理与情绪标签</label>
               <select
@@ -427,23 +463,24 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
                 <option value="Over-Confident">盲目自信 (Over-Confident)</option>
               </select>
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">执行失误标记</label>
-              <select
-                value={selectedMistake}
-                onChange={(e) => setSelectedMistake(e.target.value as MistakeTag)}
-                className="w-full bg-[#141b29] border border-[#20293d] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
-              >
-                <option value="None (Disciplined)">无违规 (Perfect Execution)</option>
-                <option value="Moved Stop Loss">后移止损 (Moved Stop Loss)</option>
-                <option value="Early Exit">过早止盈平仓 (Early Exit)</option>
-                <option value="Over-Leveraged">仓位过重 (Over-Leveraged)</option>
-                <option value="Chased Entry">追高/追空 (Chased Entry)</option>
-                <option value="Violated Trading Plan">偏离交易计划 (Violated Plan)</option>
-                <option value="Trading in High-Impact News">在无预案重大数据中赌博</option>
-              </select>
-            </div>
+          {/* Execution Mistake Tag */}
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">执行失误标记 (Mistake Tag)</label>
+            <select
+              value={selectedMistake}
+              onChange={(e) => setSelectedMistake(e.target.value as MistakeTag)}
+              className="w-full bg-[#141b29] border border-[#20293d] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+            >
+              <option value="None (Disciplined)">无违规 (Perfect Execution)</option>
+              <option value="Moved Stop Loss">后移止损 (Moved Stop Loss)</option>
+              <option value="Early Exit">过早止盈平仓 (Early Exit)</option>
+              <option value="Over-Leveraged">仓位过重 (Over-Leveraged)</option>
+              <option value="Chased Entry">追高/追空 (Chased Entry)</option>
+              <option value="Violated Trading Plan">偏离交易计划 (Violated Plan)</option>
+              <option value="Trading in High-Impact News">在无预案重大数据中赌博</option>
+            </select>
           </div>
 
           {/* Notes */}

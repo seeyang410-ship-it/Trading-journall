@@ -4,6 +4,8 @@ import { DashboardView } from './components/DashboardView';
 import { TradingJournalView } from './components/TradingJournalView';
 import { NewsView } from './components/NewsView';
 import { NotesView } from './components/NotesView';
+import { GlobalMacroView } from './components/GlobalMacroView';
+import { EquityResearchView } from './components/EquityResearchView';
 import { NewTradeModal } from './components/NewTradeModal';
 import { DayDetailsModal } from './components/DayDetailsModal';
 import { TradeDetailModal } from './components/TradeDetailModal';
@@ -209,6 +211,27 @@ export default function App() {
     setActiveTab('journal');
   };
 
+  const handleLogTradeFromMacroOrEquity = (prefill: {
+    symbol: string;
+    type: 'BUY' | 'SELL';
+    setup: string;
+    notes: string;
+    closePrice?: number;
+    macroDriver?: string;
+  }) => {
+    setNewTradePrefill({
+      symbol: prefill.symbol,
+      type: prefill.type,
+      setup: prefill.setup,
+      notes: prefill.notes,
+      closePrice: prefill.closePrice || 100,
+      openPrice: prefill.closePrice || 100,
+      positionStatus: 'HOLDING',
+      macroDriver: prefill.macroDriver || prefill.setup
+    });
+    setIsNewTradeOpen(true);
+  };
+
   const handleAddPlaybook = (newPb: PlaybookStrategy) => {
     setPlaybooks(prev => [newPb, ...prev]);
   };
@@ -266,6 +289,24 @@ export default function App() {
             onSelectDay={(d) => setSelectedDayModal(d)}
             onSelectTrade={(t) => setSelectedTradeModal(t)}
             onOpenEditCapital={() => setIsEditCapitalOpen(true)}
+          />
+        )}
+
+        {activeTab === 'macro' && (
+          <GlobalMacroView
+            onLogTradeFromMacro={(prefill) => handleLogTradeFromMacroOrEquity({
+              ...prefill,
+              macroDriver: prefill.setup
+            })}
+          />
+        )}
+
+        {activeTab === 'equity' && (
+          <EquityResearchView
+            onLogTradeFromEquity={(prefill) => handleLogTradeFromMacroOrEquity({
+              ...prefill,
+              macroDriver: 'CFA 基本面内在价值低估 (CFA Value & DCF Discount)'
+            })}
           />
         )}
 
