@@ -14,13 +14,15 @@ import {
   ShieldCheck,
   DollarSign,
   Newspaper,
+  Calendar,
+  Calculator,
   StickyNote,
   Globe2,
   Building2
 } from 'lucide-react';
 import { MT5Account } from '../types/trade';
 
-export type TabType = 'dashboard' | 'macro' | 'equity' | 'journal' | 'news' | 'notes';
+export type TabType = 'dashboard' | 'calendar' | 'valuation' | 'macro' | 'equity' | 'journal' | 'news' | 'notes';
 
 interface NavigationProps {
   activeTab: TabType;
@@ -53,8 +55,10 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   const navLinks = [
     { id: 'dashboard' as TabType, label: '量化看板', icon: LayoutDashboard },
+    { id: 'calendar' as TabType, label: '经济日历', icon: Calendar },
+    { id: 'valuation' as TabType, label: 'CFA估值模型', icon: Calculator },
     { id: 'macro' as TabType, label: '全球宏观', icon: Globe2 },
-    { id: 'equity' as TabType, label: '股票估值', icon: Building2 },
+    { id: 'equity' as TabType, label: '股票研究', icon: Building2 },
     { id: 'journal' as TabType, label: '交易日志', icon: BookOpen },
     { id: 'news' as TabType, label: '实时快讯', icon: Newspaper },
     { id: 'notes' as TabType, label: '投研Note', icon: StickyNote },

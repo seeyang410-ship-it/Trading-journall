@@ -31,19 +31,27 @@ import {
   RefreshCw,
   SlidersHorizontal,
   Flame,
-  BookOpen
+  BookOpen,
+  Calculator
 } from 'lucide-react';
 import { StockResearchProfile, FinancialYearData, GlobalRegion } from '../types/equity';
 import { INITIAL_STOCKS } from '../data/seedEquities';
 import { GLOBAL_STOCK_REGISTRY, resolveAnyGlobalStock, GlobalSearchItem } from '../data/globalStockDirectory';
 import { liveMarketEngine, LiveMarketTick } from '../services/liveMarketEngine';
 import { ValuationMethodologyModal } from './ValuationMethodologyModal';
+import { GlobalStockDirectoryModal } from './GlobalStockDirectoryModal';
 
 interface EquityResearchViewProps {
   onLogTradeFromEquity?: (prefill: { symbol: string; type: 'BUY' | 'SELL'; setup: string; notes: string; closePrice?: number }) => void;
+  onOpenInCfaValuation?: (stock: StockResearchProfile) => void;
+  initialTicker?: string;
 }
 
-export const EquityResearchView: React.FC<EquityResearchViewProps> = ({ onLogTradeFromEquity }) => {
+export const EquityResearchView: React.FC<EquityResearchViewProps> = ({ 
+  onLogTradeFromEquity, 
+  onOpenInCfaValuation,
+  initialTicker 
+}) => {
   const [stocks, setStocks] = useState<StockResearchProfile[]>(() => {
     const seen = new Set<string>();
     return INITIAL_STOCKS.filter(s => {
@@ -53,14 +61,26 @@ export const EquityResearchView: React.FC<EquityResearchViewProps> = ({ onLogTra
       return true;
     });
   });
-  const [selectedTicker, setSelectedTicker] = useState<string>('1155.KL'); // Default to popular Bursa Maybank
+  const [selectedTicker, setSelectedTicker] = useState<string>(() => initialTicker || '1155.KL'); // Default to initialTicker or Bursa Maybank
+
+  useEffect(() => {
+    if (initialTicker) {
+      setSelectedTicker(initialTicker);
+      const matched = stocks.find(s => s.ticker.toUpperCase() === initialTicker.toUpperCase());
+      if (matched) {
+        setActiveRegion(matched.region);
+      }
+    }
+  }, [initialTicker, stocks]);
   const [activeRegion, setActiveRegion] = useState<'All' | GlobalRegion>('Malaysia');
+  const [activeSector, setActiveSector] = useState<string>('全部板块');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [activeStatementTab, setActiveStatementTab] = useState<'cashflow' | 'income' | 'balance'>('cashflow');
   const [isSearchingRealtime, setIsSearchingRealtime] = useState(false);
   const [dataSourceLatency, setDataSourceLatency] = useState(14);
   const [isMethodologyModalOpen, setIsMethodologyModalOpen] = useState(false);
+  const [isGlobalDirectoryOpen, setIsGlobalDirectoryOpen] = useState(false);
   
   const searchInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -165,12 +185,31 @@ export const EquityResearchView: React.FC<EquityResearchViewProps> = ({ onLogTra
     handleSelectStock(searchQuery.trim());
   };
 
-  // Filter stocks by region & search query for quick pill listing
+  // Filter stocks by region, sector & search query for quick pill listing
   const filteredStocks = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
+    const sectorKeywords: Record<string, string[]> = {
+      '🏦 金融银行': ['银行', '金融', 'bank', '证券', 'bursa', 'jpm', 'cimb', 'maybank', 'rhb', 'public'],
+      '⚡ 科技半导体': ['半导体', '科技', '芯片', 'tech', 'nvda', 'tsm', 'asml', 'inari', 'frontken', 'intel', 'greatech', 'coin'],
+      '🛒 大众消费零售': ['消费', '零售', '食品', '饮料', '超市', 'mcd', 'ko', 'wmt', 'cost', 'diy', 'dis', 'ql', 'nestle'],
+      '🏥 医疗医药手套': ['医疗', '手套', '制药', '医药', 'hospital', 'top glove', 'hartalega', 'kossan', 'ihh', 'lly', 'pfe'],
+      '🏗️ 基建公用事业': ['电力', '电网', '基建', '能源', 'tenaga', 'ytl', 'gamuda', 'sunway', 'dialog'],
+      '🌴 种植农业大宗': ['种植', '农业', '棕油', '农牧', 'ioi', 'klk', 'plantation', 'cpo'],
+      '🏢 房产信托REITs': ['reit', '产托', '信托', '收租', '商场', '物流', 'igb', 'pavilion', 'axis', 'sunway reit'],
+      '🏭 制造能源航运': ['制造', '工程', '机械', '石油', '化工', 'petronas', 'caterpillar', 'exxon', 'cat', 'xom', 'ba']
+    };
+
     const matched = stocks.filter(s => {
       const matchRegion = activeRegion === 'All' || s.region === activeRegion;
-      if (!q) return matchRegion;
+      
+      let matchSector = true;
+      if (activeSector !== '全部板块' && sectorKeywords[activeSector]) {
+        const kwList = sectorKeywords[activeSector];
+        const text = `${s.name} ${s.sector} ${s.industry} ${s.sectorCategory || ''} ${s.ticker}`.toLowerCase();
+        matchSector = kwList.some(k => text.includes(k.toLowerCase()));
+      }
+
+      if (!q) return matchRegion && matchSector;
       const matchQuery = 
         s.ticker.toLowerCase().includes(q) || 
         s.name.toLowerCase().includes(q) ||
@@ -188,7 +227,7 @@ export const EquityResearchView: React.FC<EquityResearchViewProps> = ({ onLogTra
       seen.add(upper);
       return true;
     });
-  }, [stocks, activeRegion, searchQuery]);
+  }, [stocks, activeRegion, activeSector, searchQuery]);
 
   const currentStock = useMemo(() => {
     return stocks.find(s => s.ticker === selectedTicker) || stocks[0];
@@ -218,12 +257,17 @@ export const EquityResearchView: React.FC<EquityResearchViewProps> = ({ onLogTra
     { ticker: '5347.KL', name: 'Tenaga (国能)' },
     { ticker: '1023.KL', name: 'Public Bank' },
     { ticker: '1295.KL', name: 'CIMB' },
+    { ticker: '1066.KL', name: 'RHB (高息)' },
+    { ticker: '5176.KL', name: 'Sunway REIT (产托)' },
     { ticker: '0166.KL', name: 'Inari (半导体)' },
+    { ticker: '7084.KL', name: 'QES (小盘芯片)' },
     { ticker: '6742.KL', name: 'YTL Power' },
     { ticker: 'NVDA', name: '英伟达' },
     { ticker: 'TSLA', name: '特斯拉' },
-    { ticker: 'AAPL', name: '苹果' },
+    { ticker: 'MCD', name: '麦当劳' },
+    { ticker: 'PFE', name: '辉瑞 (高息反转)' },
     { ticker: '0700.HK', name: '腾讯' },
+    { ticker: 'BABA', name: '阿里巴巴' },
     { ticker: '600519', name: '茅台' },
     { ticker: 'ASML', name: '阿斯麦' }
   ];
@@ -284,42 +328,54 @@ export const EquityResearchView: React.FC<EquityResearchViewProps> = ({ onLogTra
         </div>
 
         {/* Global Region Switcher & Instant Search Bar */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-2 border-t border-[#182236]">
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 pt-2 border-t border-[#182236]">
           
-          {/* Region Tabs */}
-          <div className="flex items-center gap-1 bg-[#141b29] p-1 rounded-xl border border-[#20293d] overflow-x-auto text-xs">
-            {(['All', 'Malaysia', 'US', 'Greater China', 'Europe', 'Japan & APAC'] as const).map(reg => {
-              const count = stocks.filter(s => reg === 'All' ? true : s.region === reg).length;
-              return (
-                <button
-                  key={reg}
-                  onClick={() => {
-                    setActiveRegion(reg);
-                    const firstInReg = stocks.find(s => reg === 'All' ? true : s.region === reg);
-                    if (firstInReg) setSelectedTicker(firstInReg.ticker);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                    activeRegion === reg 
-                      ? 'bg-emerald-500 text-slate-950 font-bold shadow-md' 
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <span>
-                    {reg === 'All' ? '🌐 全部全球' :
-                     reg === 'Malaysia' ? '🇲🇾 马股 (Bursa)' :
-                     reg === 'US' ? '🇺🇸 美股' :
-                     reg === 'Greater China' ? '🇨🇳 港股/A股' :
-                     reg === 'Europe' ? '🇪🇺 欧洲' : '🇯🇵 日本亚太'}
-                  </span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                    activeRegion === reg ? 'bg-slate-950/20 text-slate-950 font-black' : 'bg-[#1b2538] text-slate-400'
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 overflow-x-auto">
+            {/* 全球代码库大全弹窗入口 */}
+            <button
+              onClick={() => setIsGlobalDirectoryOpen(true)}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-extrabold text-xs transition-all whitespace-nowrap flex items-center gap-1.5 shadow-md shrink-0"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>全市场代码大全 ({GLOBAL_STOCK_REGISTRY.length}+)</span>
+            </button>
+
+            {/* Region Tabs */}
+            <div className="flex items-center gap-1 bg-[#141b29] p-1 rounded-xl border border-[#20293d] overflow-x-auto text-xs shrink-0">
+              {(['All', 'Malaysia', 'US', 'Greater China', 'Europe', 'Japan & APAC'] as const).map(reg => {
+                const count = stocks.filter(s => reg === 'All' ? true : s.region === reg).length;
+                return (
+                  <button
+                    key={reg}
+                    onClick={() => {
+                      setActiveRegion(reg);
+                      const firstInReg = stocks.find(s => reg === 'All' ? true : s.region === reg);
+                      if (firstInReg) setSelectedTicker(firstInReg.ticker);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                      activeRegion === reg 
+                        ? 'bg-emerald-500 text-slate-950 font-bold shadow-md' 
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span>
+                      {reg === 'All' ? '🌐 全部全球' :
+                       reg === 'Malaysia' ? '🇲🇾 马股 (Bursa)' :
+                       reg === 'US' ? '🇺🇸 美股' :
+                       reg === 'Greater China' ? '🇨🇳 港股/A股' :
+                       reg === 'Europe' ? '🇪🇺 欧洲' : '🇯🇵 日本亚太'}
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                      activeRegion === reg ? 'bg-slate-950/20 text-slate-950 font-black' : 'bg-[#1b2538] text-slate-400'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
 
           {/* Real Global Instant Search Engine Input with Auto-Dropdown */}
           <div className="relative min-w-[320px] md:min-w-[420px]">
@@ -431,8 +487,48 @@ export const EquityResearchView: React.FC<EquityResearchViewProps> = ({ onLogTra
         </div>
 
         {/* Quick Stock Selector Pills with Live Prices */}
-        <div className="pt-2 border-t border-[#182236]">
-          <div className="text-[11px] text-slate-400 mb-2 font-sans flex items-center justify-between">
+        <div className="pt-2 border-t border-[#182236] space-y-3">
+          
+          {/* Sector Filter Bar */}
+          <div className="flex flex-wrap items-center gap-1 bg-[#131b29] p-1 rounded-xl border border-[#1f2a40] text-xs">
+            {([
+              '全部板块',
+              '🏦 金融银行',
+              '⚡ 科技半导体',
+              '🛒 大众消费零售',
+              '🏥 医疗医药手套',
+              '🏗️ 基建公用事业',
+              '🌴 种植农业大宗',
+              '🏢 房产信托REITs',
+              '🏭 制造能源航运'
+            ] as const).map(sec => {
+              const active = activeSector === sec;
+              return (
+                <button
+                  key={sec}
+                  onClick={() => setActiveSector(sec)}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                    active 
+                      ? 'bg-cyan-500 text-slate-950 font-bold shadow-md' 
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {sec}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Full Market Coverage Notice Banner */}
+          <div className="p-3 bg-gradient-to-r from-emerald-950/40 via-[#101c2e] to-blue-950/30 rounded-xl border border-emerald-500/30 text-xs flex items-start gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+            <div className="text-slate-200 leading-relaxed font-sans">
+              <strong className="text-emerald-400">【全市场全品类覆盖·无论是不是热门股都有】：</strong>
+              系统不仅覆盖知名科技大盘股，更深度囊括<strong>非热门股、周期股、传统高股息、中小市值隐形冠军、种植农牧、房产信托 (REITs) 及冷门逆向品种</strong>！支持在上方搜索框直接输入全球任意代码（如 <code className="bg-slate-900 px-1 py-0.5 rounded text-cyan-300 font-mono">7084.KL</code>、<code className="bg-slate-900 px-1 py-0.5 rounded text-cyan-300 font-mono">5176.KL</code>、<code className="bg-slate-900 px-1 py-0.5 rounded text-cyan-300 font-mono">MCD</code>、<code className="bg-slate-900 px-1 py-0.5 rounded text-cyan-300 font-mono">PFE</code>、<code className="bg-slate-900 px-1 py-0.5 rounded text-cyan-300 font-mono">ARM</code> 等），全网即查即估！
+            </div>
+          </div>
+
+          <div className="text-[11px] text-slate-400 font-sans flex items-center justify-between">
             <span>当前筛选股票列表 (共 {filteredStocks.length} 只 · 点击任意标的即刻切换全套财报与买入估算)：</span>
             {searchQuery && (
               <span className="text-cyan-400 font-bold">正在搜索: "{searchQuery}"</span>
@@ -459,7 +555,12 @@ export const EquityResearchView: React.FC<EquityResearchViewProps> = ({ onLogTra
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="font-extrabold">{st.ticker}</span>
-                    <span className="text-[11px] text-slate-300 font-sans truncate max-w-[100px]">
+                    {st.tag && (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#1e2a3f] text-cyan-300 font-sans">
+                        {st.tag}
+                      </span>
+                    )}
+                    <span className="text-[11px] text-slate-300 font-sans truncate max-w-[95px]">
                       {st.name.split(' ')[0]}
                     </span>
                   </div>
@@ -529,6 +630,17 @@ export const EquityResearchView: React.FC<EquityResearchViewProps> = ({ onLogTra
                 {currentDisplayChangePercent >= 0 ? '+' : ''}{currentDisplayChangePercent.toFixed(2)}% (24H)
               </div>
             </div>
+
+            {onOpenInCfaValuation && (
+              <button
+                onClick={() => onOpenInCfaValuation(currentStock)}
+                className="px-4 py-3 bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-amber-500/10 hover:from-amber-500/30 hover:to-yellow-500/25 text-amber-300 hover:text-amber-100 border border-amber-500/40 font-bold text-xs sm:text-sm rounded-2xl shadow-xl shadow-amber-950/40 transition-all hover:scale-105 flex items-center gap-2 shrink-0 cursor-pointer"
+                title="将当前股票的一揽子财务指标与假设直接载入 CFA 估值工作台，进行专业 DCF/DDM/倍数/足球场图估值建模"
+              >
+                <Calculator className="w-4 h-4 text-amber-400" />
+                <span>⚡ 导入 CFA 估值工作台</span>
+              </button>
+            )}
 
             <button
               onClick={handleQuickLogTrade}
@@ -949,6 +1061,32 @@ export const EquityResearchView: React.FC<EquityResearchViewProps> = ({ onLogTra
           </div>
         </div>
 
+        {onOpenInCfaValuation && (
+          <div className="p-4 bg-gradient-to-r from-amber-950/40 via-[#162032] to-yellow-950/30 rounded-xl border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 mt-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 shrink-0 border border-amber-500/30">
+                <Calculator className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-amber-200 flex items-center gap-2">
+                  <span>联动 CFA 估值工作台：深入自定义预测假设</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">无需在 Excel 中手动搭模</span>
+                </div>
+                <div className="text-[11px] text-slate-300 mt-0.5 font-sans">
+                  已支持将【{currentStock.name} ({currentStock.ticker})】的营收、EBITDA利润率、负债现金与 WACC 参数一键导入 CFA 估值模型工作台，可自由调整未来 5 年增速并生成敏感度矩阵与足球场图！
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => onOpenInCfaValuation(currentStock)}
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 whitespace-nowrap cursor-pointer shrink-0 hover:scale-105"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>载入 CFA 估值模型进行深入建模 →</span>
+            </button>
+          </div>
+        )}
+
       </div>
 
       {/* ========================================================================= */}
@@ -1047,6 +1185,13 @@ export const EquityResearchView: React.FC<EquityResearchViewProps> = ({ onLogTra
       <ValuationMethodologyModal
         isOpen={isMethodologyModalOpen}
         onClose={() => setIsMethodologyModalOpen(false)}
+      />
+
+      {/* 📖 全球股票代码库与估值大全弹窗 */}
+      <GlobalStockDirectoryModal
+        isOpen={isGlobalDirectoryOpen}
+        onClose={() => setIsGlobalDirectoryOpen(false)}
+        onSelectStock={handleSelectStock}
       />
 
     </div>

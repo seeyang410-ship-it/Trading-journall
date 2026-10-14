@@ -7,6 +7,8 @@ export interface GlobalSearchItem {
   region: GlobalRegion;
   exchange: string;
   sector: string;
+  sectorCategory?: string;
+  tag?: string;
   currency: string;
   currentPrice: number;
   fairValue: number;
@@ -18,8 +20,8 @@ export interface GlobalSearchItem {
   guide: string; // 哪个价位本金适合投入 (大白话)
 }
 
-// 60+ Comprehensive Global Companies across Malaysia, US, Greater China, Europe, Japan/APAC
-export const GLOBAL_STOCK_REGISTRY: GlobalSearchItem[] = [
+// Base 38 Global Companies across Malaysia, US, Greater China, Europe, Japan/APAC
+const BASE_REGISTRY: GlobalSearchItem[] = [
   // =========================================================================
   // 🇲🇾 马来西亚核心股票 (Bursa Malaysia / KLSE) - 包含银行、公用事业、AI数据中心、半导体、大宗消费
   // =========================================================================
@@ -649,6 +651,23 @@ export const GLOBAL_STOCK_REGISTRY: GlobalSearchItem[] = [
   }
 ];
 
+import { EXPANDED_NON_HOT_STOCKS } from './globalExpandedStocks';
+
+// Merge BASE_REGISTRY with EXPANDED_NON_HOT_STOCKS, strictly deduplicated by ticker
+const RAW_REGISTRY: GlobalSearchItem[] = [
+  ...BASE_REGISTRY,
+  ...EXPANDED_NON_HOT_STOCKS
+];
+
+const registrySeen = new Set<string>();
+export const GLOBAL_STOCK_REGISTRY: GlobalSearchItem[] = RAW_REGISTRY.filter(item => {
+  const upper = item.ticker.toUpperCase();
+  if (registrySeen.has(upper)) return false;
+  registrySeen.add(upper);
+  return true;
+});
+
+
 /**
  * Universal dynamic stock generator:
  * Allows ANY ticker in the world to be instantly modeled with authentic financials,
@@ -658,32 +677,112 @@ export function resolveAnyGlobalStock(symbolOrName: string): StockResearchProfil
   const query = symbolOrName.trim().toUpperCase();
   
   // 1. Check registry first
+  const rawUpper = query.trim().toUpperCase();
+  let normalizedQuery = rawUpper;
+  if (/^\d{4}$/.test(rawUpper)) {
+    if (['0700', '9988', '3690', '1810', '9618', '2318', '0941', '0388', '1211'].includes(rawUpper)) {
+      normalizedQuery = `${rawUpper}.HK`;
+    } else {
+      normalizedQuery = `${rawUpper}.KL`;
+    }
+  } else if (/^(600|601|603|605)\d{3}$/.test(rawUpper)) {
+    normalizedQuery = `${rawUpper}.SH`;
+  } else if (/^(000|001|002|300)\d{3}$/.test(rawUpper)) {
+    normalizedQuery = `${rawUpper}.SZ`;
+  }
+
   const match = GLOBAL_STOCK_REGISTRY.find(item => 
-    item.ticker.toUpperCase() === query || 
-    item.name.toUpperCase().includes(query) ||
-    item.ticker.toUpperCase().replace('.KL', '').replace('.HK', '').replace('.T', '').replace('.PA', '') === query
+    item.ticker.toUpperCase() === normalizedQuery || 
+    item.ticker.toUpperCase() === rawUpper || 
+    item.name.toUpperCase().includes(rawUpper) ||
+    item.ticker.toUpperCase().replace('.KL', '').replace('.HK', '').replace('.T', '').replace('.PA', '') === rawUpper
   );
 
-  const ticker = match ? match.ticker : query;
-  const name = match ? match.name : `${query} 国际公司`;
-  const isMYR = ticker.endsWith('.KL') || match?.region === 'Malaysia';
-  const isHK = ticker.endsWith('.HK') || (match?.region === 'Greater China' && match.currency === 'HKD');
-  const isEUR = match?.currency === 'EUR' || ticker.endsWith('.PA');
-  const isJPY = ticker.endsWith('.T') || match?.currency === 'JPY';
-  const isKRW = ticker.endsWith('.KS') || match?.currency === 'KRW';
+  const KNOWN_GLOBAL_COMPANIES: Record<string, { name: string; sector: string; currency: string; region: GlobalRegion; exchange: string; price: number }> = {
+    'INTC': { name: '英特尔 (Intel Corporation)', sector: '全球 PC 与服务器 CPU 巨头及代工制造', currency: 'USD', region: 'US', exchange: 'NASDAQ', price: 23.5 },
+    'CSCO': { name: '思科系统 (Cisco Systems)', sector: '企业网络交换机、路由器与网络安全', currency: 'USD', region: 'US', exchange: 'NASDAQ', price: 58.0 },
+    'ORCL': { name: '甲骨文 (Oracle Corporation)', sector: '企业级数据库与 OCI AI 基础设施云', currency: 'USD', region: 'US', exchange: 'NYSE', price: 175.0 },
+    'ADBE': { name: '奥多比 (Adobe Inc.)', sector: '数字创意设计软件与 Firefly 生成式 AI', currency: 'USD', region: 'US', exchange: 'NASDAQ', price: 505.0 },
+    'CRM': { name: '赛富时 (Salesforce)', sector: '全球第一客户关系管理 (CRM) 与 Agentforce', currency: 'USD', region: 'US', exchange: 'NYSE', price: 335.0 },
+    'TXN': { name: '德州仪器 (Texas Instruments)', sector: '模拟与嵌入式处理芯片工业龙头', currency: 'USD', region: 'US', exchange: 'NASDAQ', price: 205.0 },
+    'QCOM': { name: '高通 (Qualcomm)', sector: '骁龙移动处理器与 5G 调制解调器专利', currency: 'USD', region: 'US', exchange: 'NASDAQ', price: 165.0 },
+    'IBM': { name: '国际商业机器 (IBM)', sector: '企业混合云 Red Hat 与量子计算商业化', currency: 'USD', region: 'US', exchange: 'NYSE', price: 215.0 },
+    'CAT': { name: '卡特彼勒 (Caterpillar)', sector: '全球重型建筑机械与采矿设备霸主', currency: 'USD', region: 'US', exchange: 'NYSE', price: 385.0 },
+    'BA': { name: '波音公司 (The Boeing Company)', sector: '商用大飞机制造与全球国防航空航天', currency: 'USD', region: 'US', exchange: 'NYSE', price: 145.0 },
+    'GS': { name: '高盛集团 (Goldman Sachs)', sector: '华尔街顶级投资银行、证券交易与做市', currency: 'USD', region: 'US', exchange: 'NYSE', price: 580.0 },
+    'MS': { name: '摩根士丹利 (Morgan Stanley)', sector: '全球财富管理中心与全能型投资银行', currency: 'USD', region: 'US', exchange: 'NYSE', price: 125.0 },
+    'NFLX': { name: '奈飞 (Netflix)', sector: '全球流媒体付费订阅第一平台', currency: 'USD', region: 'US', exchange: 'NASDAQ', price: 820.0 },
+    'DIS': { name: '迪士尼 (Walt Disney)', sector: '全球百年文化娱乐、主题乐园与流媒体', currency: 'USD', region: 'US', exchange: 'NYSE', price: 112.0 },
+    'UBER': { name: '优步科技 (Uber Technologies)', sector: '全球最大网约车出行网络与外卖配送', currency: 'USD', region: 'US', exchange: 'NYSE', price: 72.0 },
+    'ABNB': { name: '爱彼迎 (Airbnb)', sector: '全球短租民宿平台与体验经济网络', currency: 'USD', region: 'US', exchange: 'NASDAQ', price: 135.0 },
+    'COIN': { name: '币安 Coinbase (Coinbase Global)', sector: '全球最大合规加密货币交易所与 Base 链', currency: 'USD', region: 'US', exchange: 'NASDAQ', price: 285.0 },
+    'CRWD': { name: '群集打击 (CrowdStrike)', sector: '云原生终端安全防护平台 Falcon', currency: 'USD', region: 'US', exchange: 'NASDAQ', price: 345.0 },
+    'PANW': { name: '派拓网络 (Palo Alto Networks)', sector: '下一代防火墙与企业网络安全平台', currency: 'USD', region: 'US', exchange: 'NASDAQ', price: 385.0 },
+    'SMCI': { name: '超微电脑 (Super Micro Computer)', sector: '液冷服务器架构与高密度 AI 机柜', currency: 'USD', region: 'US', exchange: 'NASDAQ', price: 32.0 },
+    'MU': { name: '美光科技 (Micron Technology)', sector: 'DRAM 与 NAND 存储芯片先进制程', currency: 'USD', region: 'US', exchange: 'NASDAQ', price: 105.0 },
+    'NVO': { name: '诺和诺德 (Novo Nordisk ADR)', sector: 'GLP-1 司美格鲁肽减重降糖超级神药', currency: 'USD', region: 'Europe', exchange: 'NYSE', price: 115.0 },
+    'TSM': { name: '台积电 (TSMC ADR)', sector: '全球 3nm/2nm 先进晶圆代工绝对霸主', currency: 'USD', region: 'Japan & APAC', exchange: 'NYSE', price: 188.0 },
+    'SHEL': { name: '壳牌石油 (Shell ADR)', sector: '全球超级石油综合体与液化天然气 LNG 贸易', currency: 'USD', region: 'Europe', exchange: 'NYSE', price: 65.0 },
+    'AZN': { name: '阿斯利康 (AstraZeneca ADR)', sector: '肿瘤创新药靶向疗法与跨国生物制药', currency: 'USD', region: 'Europe', exchange: 'NASDAQ', price: 68.0 },
+    'BP': { name: '英国石油 (BP ADR)', sector: '国际石油天然气勘探开采与新能源转型', currency: 'USD', region: 'Europe', exchange: 'NYSE', price: 31.0 },
+    'VALE': { name: '淡水河谷 (Vale S.A.)', sector: '全球最大高品位铁矿石生产商', currency: 'USD', region: 'US', exchange: 'NYSE', price: 10.5 },
+    'BHP': { name: '必和必拓 (BHP Group ADR)', sector: '全球最大综合矿业跨国集团（铁矿/铜/煤）', currency: 'USD', region: 'Japan & APAC', exchange: 'NYSE', price: 54.0 },
+    'RIO': { name: '力拓集团 (Rio Tinto ADR)', sector: '全球顶尖铁矿石、铝土矿与铜矿勘探开采', currency: 'USD', region: 'Europe', exchange: 'NYSE', price: 64.0 },
+    'SAP': { name: '思爱普 (SAP ADR)', sector: '全球最大企业资源计划 (ERP) 软件巨头', currency: 'USD', region: 'Europe', exchange: 'NYSE', price: 235.0 },
+    'SONY': { name: '索尼集团 (Sony Group ADR)', sector: 'PlayStation 游戏机与手机 CMOS 传感器', currency: 'USD', region: 'Japan & APAC', exchange: 'NYSE', price: 98.0 },
+    'HMC': { name: '本田汽车 (Honda Motor ADR)', sector: '全球著名汽车、摩托车与动力总成制造', currency: 'USD', region: 'Japan & APAC', exchange: 'NYSE', price: 28.0 },
+    'BIDU': { name: '百度 (Baidu ADR)', sector: '中国搜索垄断、文心一言大模型与萝卜快跑', currency: 'USD', region: 'Greater China', exchange: 'NASDAQ', price: 85.0 },
+    'JD': { name: '京东集团 (JD.com ADR)', sector: '中国自营电商零售与京东独立自建仓配物流', currency: 'USD', region: 'Greater China', exchange: 'NASDAQ', price: 34.0 },
+    'PDD': { name: '拼多多 (PDD Holdings)', sector: '国内农产品高性价比电商与 Temu 跨境出海', currency: 'USD', region: 'Greater China', exchange: 'NASDAQ', price: 112.0 },
+    'NTES': { name: '网易 (NetEase ADR)', sector: '自研精品长线网游、暴雪代理与云音乐', currency: 'USD', region: 'Greater China', exchange: 'NASDAQ', price: 82.0 },
+    'LI': { name: '理想汽车 (Li Auto ADR)', sector: '家庭智能电动 SUV 增程技术与纯电系列', currency: 'USD', region: 'Greater China', exchange: 'NASDAQ', price: 22.0 },
+    'NIO': { name: '蔚来汽车 (NIO Inc. ADR)', sector: '全球智能电动汽车换电网络与高端服务', currency: 'USD', region: 'Greater China', exchange: 'NYSE', price: 4.8 },
+    'XPEV': { name: '小鹏汽车 (XPeng ADR)', sector: '全场景城市高阶辅助智驾与纯电智能座舱', currency: 'USD', region: 'Greater China', exchange: 'NYSE', price: 12.0 }
+  };
 
-  const currency = isMYR ? 'MYR' : isHK ? 'HKD' : isEUR ? 'EUR' : isJPY ? 'JPY' : isKRW ? 'KRW' : 'USD';
-  const region: GlobalRegion = match ? match.region : (isMYR ? 'Malaysia' : 'US');
-  const exchange = match ? match.exchange : (isMYR ? 'Bursa Malaysia' : 'Global Exchanges');
-  const sector = match ? match.sector : '全球高价值核心产业';
+  const known = KNOWN_GLOBAL_COMPANIES[rawUpper] || KNOWN_GLOBAL_COMPANIES[normalizedQuery];
+
+  const ticker = match ? match.ticker : (known ? rawUpper : normalizedQuery);
+  
+  // Intelligent recognition of global ticker patterns & company names
+  const isMYR = ticker.endsWith('.KL') || match?.region === 'Malaysia' || known?.currency === 'MYR' || /^\d{4}$/.test(query);
+  const isHK = ticker.endsWith('.HK') || (match?.region === 'Greater China' && match?.currency === 'HKD') || known?.currency === 'HKD';
+  const isCN = ticker.endsWith('.SS') || ticker.endsWith('.SZ') || ticker.endsWith('.SH') || /^(600|601|603|605|000|001|002|300)\d{3}$/.test(query);
+  const isJPY = ticker.endsWith('.T') || match?.currency === 'JPY' || known?.currency === 'JPY';
+  const isKRW = ticker.endsWith('.KS') || ticker.endsWith('.KQ') || match?.currency === 'KRW';
+  const isEUR = match?.currency === 'EUR' || ticker.endsWith('.PA') || ticker.endsWith('.DE') || ticker.endsWith('.AS') || ticker.endsWith('.MC') || known?.currency === 'EUR';
+  const isGBP = ticker.endsWith('.L') || match?.currency === 'GBP';
+  const isSGD = ticker.endsWith('.SI') || match?.currency === 'SGD';
+
+  const currency = match ? match.currency : (known ? known.currency : (isMYR ? 'MYR' : isHK ? 'HKD' : isCN ? 'CNY' : isJPY ? 'JPY' : isKRW ? 'KRW' : isEUR ? 'EUR' : isGBP ? 'GBP' : isSGD ? 'SGD' : 'USD'));
+  const region: GlobalRegion = match ? match.region : (known ? known.region : 
+    (isMYR ? 'Malaysia' : (isHK || isCN) ? 'Greater China' : (isEUR || isGBP) ? 'Europe' : (isJPY || isKRW || isSGD) ? 'Japan & APAC' : 'US'));
+  
+  const exchange = match ? match.exchange : (known ? known.exchange : 
+    (isMYR ? 'Bursa Malaysia (KLSE)' : isHK ? 'Hong Kong Stock Exchange (HKEX)' : isCN ? '上海/深圳证券交易所' : isJPY ? 'Tokyo Stock Exchange (TSE)' : isKRW ? 'Korea Exchange (KRX)' : isEUR ? 'Euronext / XETRA' : isGBP ? 'London Stock Exchange' : 'NASDAQ / NYSE 全球市场'));
+
+  const defaultName = isMYR ? `大马全市场精选 (${ticker})` :
+                      isCN ? `中国A股全市场标的 (${ticker})` :
+                      isHK ? `港股通全市场标的 (${ticker})` :
+                      isJPY ? `日本东京全市场标的 (${ticker})` :
+                      isEUR ? `欧洲全市场优质股权 (${ticker})` :
+                      `全球全市场企业标的 (${ticker})`;
+
+  const name = match ? match.name : (known ? known.name : defaultName);
+  const sector = match ? match.sector : (known ? known.sector : '全球全市场核心细分产业链');
 
   // Base price tailored by currency or match
   const basePrice = match ? match.currentPrice : (
-    isMYR ? (Math.floor(Math.random() * 8) + 4) : 
-    isJPY ? (Math.floor(Math.random() * 2000) + 1500) : 
-    isHK ? (Math.floor(Math.random() * 150) + 80) :
-    (Math.floor(Math.random() * 120) + 70)
+    known ? known.price : (
+      isMYR ? (Math.floor(Math.random() * 8) + 4.5) : 
+      isJPY ? (Math.floor(Math.random() * 2500) + 1800) : 
+      isKRW ? (Math.floor(Math.random() * 30000) + 25000) :
+      isHK ? (Math.floor(Math.random() * 120) + 45) :
+      isCN ? (Math.floor(Math.random() * 80) + 30) :
+      (Math.floor(Math.random() * 140) + 65)
+    )
   );
+
 
   const fairVal = match ? match.fairValue : Math.round(basePrice * 1.25 * 10) / 10;
   const buyTarget = match ? match.buyTarget : Math.round(fairVal * 0.8 * 10) / 10;
@@ -765,6 +864,8 @@ export function resolveAnyGlobalStock(symbolOrName: string): StockResearchProfil
     region,
     exchange,
     sector,
+    sectorCategory: match?.sectorCategory || (isMYR ? '🇲🇾 马来西亚优质龙头' : '全球综合核心资产'),
+    tag: match?.tag || (basePrice <= buyTarget ? '价值低估' : '全市场资产'),
     industry: '全球产业链核心龙头',
     currency,
     currentPrice: basePrice,

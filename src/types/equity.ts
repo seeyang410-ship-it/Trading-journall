@@ -92,6 +92,8 @@ export interface StockResearchProfile {
   region: GlobalRegion;
   exchange: string; // e.g. NASDAQ, NYSE, HKEX, SSE, Euronext, TSE
   sector: string;
+  sectorCategory?: string;
+  tag?: string;
   industry: string;
   currency: string;
   currentPrice: number;

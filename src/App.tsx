@@ -6,6 +6,8 @@ import { NewsView } from './components/NewsView';
 import { NotesView } from './components/NotesView';
 import { GlobalMacroView } from './components/GlobalMacroView';
 import { EquityResearchView } from './components/EquityResearchView';
+import { EconomicCalendarView } from './components/EconomicCalendarView';
+import { ValuationModelView } from './components/ValuationModelView';
 import { NewTradeModal } from './components/NewTradeModal';
 import { DayDetailsModal } from './components/DayDetailsModal';
 import { TradeDetailModal } from './components/TradeDetailModal';
@@ -13,6 +15,7 @@ import { ImportModal } from './components/ImportModal';
 import { AddAccountModal } from './components/AddAccountModal';
 import { EditCapitalModal } from './components/EditCapitalModal';
 import { Trade, MT5Account, DailyJournalEntry, PlaybookStrategy } from './types/trade';
+import { StockResearchProfile } from './types/equity';
 import { INITIAL_MT5_ACCOUNTS, INITIAL_TRADES, INITIAL_JOURNALS, INITIAL_PLAYBOOKS } from './data/seedTrades';
 import { syncEngine, AppStatePayload } from './services/syncEngine';
 
@@ -32,6 +35,8 @@ export default function App() {
   const [selectedDayModal, setSelectedDayModal] = useState<string | null>(null);
   const [selectedTradeModal, setSelectedTradeModal] = useState<Trade | null>(null);
   const [newTradePrefill, setNewTradePrefill] = useState<Partial<Trade> | undefined>(undefined);
+  const [targetValuationStock, setTargetValuationStock] = useState<StockResearchProfile | null>(null);
+  const [targetEquityTicker, setTargetEquityTicker] = useState<string>('1155.KL');
 
   // Active account instance
   const activeAccount = useMemo(() => {
@@ -292,6 +297,29 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'calendar' && (
+          <EconomicCalendarView
+            onLogTradeFromCalendar={(prefill) => handleLogTradeFromMacroOrEquity({
+              ...prefill,
+              macroDriver: `宏观数据驱动交易 (${prefill.symbol})`
+            })}
+          />
+        )}
+
+        {activeTab === 'valuation' && (
+          <ValuationModelView
+            linkedStock={targetValuationStock}
+            onNavigateToEquity={(ticker) => {
+              setTargetEquityTicker(ticker);
+              setActiveTab('equity');
+            }}
+            onLogTradeFromValuation={(prefill) => handleLogTradeFromMacroOrEquity({
+              ...prefill,
+              macroDriver: `CFA 估值模型驱动 (${prefill.symbol})`
+            })}
+          />
+        )}
+
         {activeTab === 'macro' && (
           <GlobalMacroView
             onLogTradeFromMacro={(prefill) => handleLogTradeFromMacroOrEquity({
@@ -303,6 +331,11 @@ export default function App() {
 
         {activeTab === 'equity' && (
           <EquityResearchView
+            initialTicker={targetEquityTicker}
+            onOpenInCfaValuation={(stock) => {
+              setTargetValuationStock(stock);
+              setActiveTab('valuation');
+            }}
             onLogTradeFromEquity={(prefill) => handleLogTradeFromMacroOrEquity({
               ...prefill,
               macroDriver: 'CFA 基本面内在价值低估 (CFA Value & DCF Discount)'

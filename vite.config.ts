@@ -65,6 +65,150 @@ function apiBackendPlugin(): Plugin {
           return;
         }
 
+        // Global Market Financial Data API: Search symbols
+        if (req.url?.startsWith('/api/market/search') && req.method === 'GET') {
+          const parsedUrl = new URL(req.url, 'http://localhost');
+          const query = (parsedUrl.searchParams.get('q') || '').trim();
+          if (!query) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, count: 0, results: [] }));
+            return;
+          }
+
+          fetch(`https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=20&newsCount=0`, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+          })
+            .then(r => r.json())
+            .then(data => {
+              const quotes = data.quotes || [];
+              const results = quotes.map((item: any) => ({
+                symbol: item.symbol,
+                name: item.shortname || item.longname || item.symbol,
+                exchange: item.exchDisp || item.exchange || 'GLOBAL',
+                type: item.quoteType || item.typeDisp || 'EQUITY',
+                sector: item.sector || item.industry || item.sectorDisp || '',
+                score: item.score || 0
+              }));
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true, count: results.length, results }));
+            })
+            .catch(err => {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: false, error: err.message, results: [] }));
+            });
+          return;
+        }
+
+        // Global Market Financial Data API: Quotes
+        if (req.url?.startsWith('/api/market/quote') && req.method === 'GET') {
+          const parsedUrl = new URL(req.url, 'http://localhost');
+          const symbolsStr = (parsedUrl.searchParams.get('symbols') || '').trim();
+          const symbols = symbolsStr.split(',').map(s => s.trim()).filter(Boolean);
+
+          if (symbols.length === 0) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, quotes: {} }));
+            return;
+          }
+
+          Promise.all(symbols.map(async sym => {
+            try {
+              const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d`, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+              });
+              const d = await r.json();
+              const meta = d.chart?.result?.[0]?.meta;
+              if (meta && meta.regularMarketPrice !== undefined) {
+                const prev = meta.chartPreviousClose || meta.previousClose || meta.regularMarketPrice;
+                const price = meta.regularMarketPrice;
+                const change = price - prev;
+                const changePct = prev > 0 ? (change / prev) * 100 : 0;
+                return {
+                  symbol: sym,
+                  price: price,
+                  prevClose: prev,
+                  change: Math.round(change * 1000) / 1000,
+                  changePercent: Math.round(changePct * 100) / 100,
+                  high24h: meta.regularMarketDayHigh || price,
+                  low24h: meta.regularMarketDayLow || price,
+                  currency: meta.currency || 'USD',
+                  exchangeName: meta.exchangeName || '',
+                  volume: meta.regularMarketVolume ? `${(meta.regularMarketVolume / 1000).toFixed(1)}K` : 'N/A'
+                };
+              }
+              return null;
+            } catch {
+              return null;
+            }
+          })).then(results => {
+            const quotesMap: Record<string, any> = {};
+            results.forEach(resItem => {
+              if (resItem) quotesMap[resItem.symbol] = resItem;
+            });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, quotes: quotesMap }));
+          }).catch(err => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: err.message, quotes: {} }));
+          });
+          return;
+        }
+
+        // Global Market Financial Data API: Candles
+        if (req.url?.startsWith('/api/market/candles') && req.method === 'GET') {
+          const parsedUrl = new URL(req.url, 'http://localhost');
+          const symbol = (parsedUrl.searchParams.get('symbol') || 'AAPL').trim();
+          const interval = (parsedUrl.searchParams.get('interval') || '15m').trim();
+          const range = (parsedUrl.searchParams.get('range') || '2d').trim();
+
+          fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}`, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+          })
+            .then(r => r.json())
+            .then(data => {
+              const resObj = data.chart?.result?.[0];
+              const timestamps = resObj?.timestamp || [];
+              const quotes = resObj?.indicators?.quote?.[0] || {};
+              const meta = resObj?.meta || {};
+
+              const candles: any[] = [];
+              for (let i = 0; i < timestamps.length; i++) {
+                const o = quotes.open?.[i];
+                const h = quotes.high?.[i];
+                const l = quotes.low?.[i];
+                const c = quotes.close?.[i];
+                const v = quotes.volume?.[i] || 0;
+                if (o != null && h != null && l != null && c != null) {
+                  const d = new Date(timestamps[i] * 1000);
+                  const timeStr = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+                  candles.push({
+                    time: timeStr,
+                    timestamp: timestamps[i] * 1000,
+                    open: Math.round(o * 100) / 100,
+                    high: Math.round(h * 100) / 100,
+                    low: Math.round(l * 100) / 100,
+                    close: Math.round(c * 100) / 100,
+                    volume: v
+                  });
+                }
+              }
+
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: true,
+                symbol,
+                currency: meta.currency || 'USD',
+                exchange: meta.exchangeName || '',
+                candles
+              }));
+            })
+            .catch(err => {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: false, error: err.message, candles: [] }));
+            });
+          return;
+        }
+
         next();
       });
     }
